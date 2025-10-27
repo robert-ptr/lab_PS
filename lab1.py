@@ -10,7 +10,7 @@ class SignalType(Enum):
 
 
 class Signal:
-    def __init__(self, name, freq, phase, signal_type, duration, precision):
+    def __init__(self, name, freq, phase, signal_type, duration, precision=0.00001):
         self.name = name
         self.freq = freq
         self.phase = phase
@@ -27,10 +27,11 @@ class Signal:
 
     def plot_signal(self, ax):
         auxiliary_func = lambda x: x
-        if not(self.sampling):
-            time_series = np.arange(0, self.duration, self.precision)
-        else:
-            time_series = np.arange(0, self.duration, 1 / self.sampling_freq)
+        time_series = np.arange(0, self.duration, self.precision)
+        
+        if self.sampling:
+            sample_time_series = np.arange(0, self.duration, 1/ self.sampling_freq)
+        
         if self.signal_type == SignalType.SINE:
             self.phase -= np.pi / 2
         elif self.signal_type == SignalType.SAWTOOTH:
@@ -40,9 +41,16 @@ class Signal:
         
         if self.signal_type != SignalType.SAWTOOTH:
             f = auxiliary_func(np.cos(2 * np.pi * self.freq * time_series + self.phase))
+            if self.sampling:
+                sample_f = auxiliary_func(np.cos(2 * np.pi * self.freq * sample_time_series + self.phase))        
         else:
             f = 2 * (time_series * self.freq - np.floor(time_series * self.freq + 1/2))
-    
+            if self.sampling:
+                sample_f = 2 * (sample_time_series * self.freq - np.floor(sample_time_series * self.freq + 1/2)) 
+
+        if self.sampling:
+            ax.stem(sample_time_series, sample_f)
+
         ax.plot(time_series, f)
         ax.set_title(self.name)
         ax.set_xlabel("Time [s]")
@@ -54,10 +62,10 @@ class Signal:
 #y = Signal("Semnal 2", 280, - np.pi / 3, time_series)
 #z = Signal("Semnal 3", 120, + np.pi / 3, time_series)
 
-signals = [Signal("Signal 0", 400, 0, SignalType.SINE, 0.032, 0.00001).with_sampling(5000),
-           Signal("Signal 1", 800, 0, SignalType.SINE, 0.03, 0.0001),
-           Signal("Signal 2", 240, 0, SignalType.SAWTOOTH, 0.03, 0.00001),
-           Signal("Signal 3", 300, 0, SignalType.SQUARE, 0.03, 0.00001)]
+signals = [Signal("Signal 0", 400, 0, SignalType.SINE, 0.032).with_sampling(5000),
+           Signal("Signal 1", 800, 0, SignalType.SINE, 0.03),
+           Signal("Signal 2", 240, 0, SignalType.SAWTOOTH, 0.03),
+           Signal("Signal 3", 300, 0, SignalType.SQUARE, 0.03)]
 
 
 fig, axs = plt.subplots(len(signals), 1, figsize=(8,6))
