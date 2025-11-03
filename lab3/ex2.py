@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 import math
 from matplotlib.animation import FuncAnimation, PillowWriter
 
-fig, axes = plt.subplots(5, 1, figsize=(10, 12))
+fig, axes = plt.subplots(2, 3, figsize=(10, 12))
+axes = axes.flatten()
 precision = 0.00001
 duration = 0.1
 sine_signal = Signal("Example Signal", 1, 80, 0, SignalType.SINE, duration, precision).with_sampling(1000)
@@ -15,8 +16,8 @@ print(sine_signal.samples)
 
 length = len(sine_signal.get_function())
 
-omega_values = [1, 2, 5, 7]
-y_values = [0, 0, 0, 0]
+omega_values = [1, 2, 5, 7, 80]
+y_values = [None] * len(omega_values)
 sine_signal.plot_signal(axes[0])
 
 for i in range(len(omega_values)):
