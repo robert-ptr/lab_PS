@@ -1,5 +1,5 @@
-from common import Signal
-from common import SignalType
+from ..common import Signal
+from ..common import SignalType
 import sounddevice as sd
 import numpy as np
 

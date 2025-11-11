@@ -1,5 +1,5 @@
-from common import Signal
-from common import SignalType
+from ..common import Signal
+from ..common import SignalType
 import matplotlib.pyplot as plt
 
 fig, axes = plt.subplots(3, 1, figsize=(12, 10))

@@ -1,5 +1,5 @@
-from common import Signal
-from common import SignalType
+from ..common import Signal
+from ..common import SignalType
 import matplotlib.pyplot as plt
 
 freq_sample = 800
