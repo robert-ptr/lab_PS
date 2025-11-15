@@ -60,6 +60,21 @@ print(top4_frequencies)
 # cel mai ciudat rezultat este cel de 3.5 zile, nu stiu sigur ce inseamna. O diferenta intre luni-joi si joi-duminica?
 
 # 1 g)
+# Trebuie sa gasim o zi de luni. Avem nevoie de media mobila
+window_size = 24
+avg_24h = np.convolve(data, np.ones(window_size) / window_size, mode='valid')
+valley_indices, _ = find_peaks(-avg_24h, distance=160)
+
+first_valley = valley_indices[valley_indices > 1000][0]
+first_monday = first_valley + 16
+last_day = first_monday + 30 * 24
+
+plt.figure(figsize=(15, 6))
+plt.plot(np.arange(first_monday, last_day), data[first_monday : last_day])
+plt.grid(True)
+plt.xlabel("Hour")
+plt.ylabel("Freq (Hz)")
+plt.show()
 
 # 1 h)
 # In primul rand nu cred ca putem afla anul. Am putea afla deceniul insa asta depinde si de locatie. Deoarece in unele zone
@@ -97,6 +112,6 @@ filtered_signal_fft = np.real(np.fft.ifft(X_filtered))
 
 fig, axes = plt.subplots(2, 1, figsize=(12, 6))
 
-axes[0].plot(data, label="Semnal Original", alpha=0.7)
-axes[1].plot(filtered_signal_fft, label=f"Filtrat (taiere < {max_frequency} Hz)", linewidth=2, color='red')
+axes[0].plot(data, label="Original Signal", alpha=0.7)
+axes[1].plot(filtered_signal_fft, label=f"Filtered (cutoff < {max_frequency} Hz)", linewidth=2, color='red')
 plt.show()
