@@ -1,7 +1,7 @@
 import numpy as np
 import time
 
-N = 1000
+N = 3
 
 p = np.random.randint(low=0, high=10, size=N)
 q = np.random.randint(low=0, high=10, size=N)
@@ -12,13 +12,13 @@ def basic_polynomial_mul(a, b):
     n = len(a)
     m = len(b)
 
-    result = np.zeros(n + m)
+    result = np.zeros(n + m - 1)
 
-    for i in range(N):
-        for j in range(N):
+    for i in range(n):
+        for j in range(m):
             result[i + j] += a[i] * b[j]
 
-    return result[:-1]
+    return result
 
 def fft_polynomial_mul(a, b):
     n = len(a)
@@ -33,18 +33,18 @@ def fft_polynomial_mul(a, b):
     C = A * B
     c = np.fft.ifft(C)
 
-    return np.rint(c.real[:size].astype(int)).tolist()
+    return np.rint(c.real[:size]).astype(int).tolist()
 
 start = time.time()
 
-basic_polynomial_mul(q, p)
+print(basic_polynomial_mul(q, p))
 
 end = time.time()
 print("Elapsed:", end - start, "seconds")
 
 start = time.time()
 
-fft_polynomial_mul(q, p)
+print(fft_polynomial_mul(q, p))
 
 end = time.time()
 print("Elapsed:", end - start, "seconds")
