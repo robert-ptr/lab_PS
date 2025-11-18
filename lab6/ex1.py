@@ -22,7 +22,7 @@ axes = axes.flatten()
 for i in range(4):
     T_s = 1 / frequencies[i]
 
-    points = np.arange(-3, 3, 1 / frequencies[i])
+    points = np.union1d(np.arange(0, 3, 1/frequencies[i]), np.arange(0, -3, -1/frequencies[i]))
     sampled_x = np.sinc(B * points) ** 2
 
     reconstruced_x = 0.0
