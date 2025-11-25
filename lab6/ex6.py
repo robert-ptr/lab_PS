@@ -55,3 +55,41 @@ plt.show()
 
 # as alege fltrul Butterworth deoarece mi se pare ca evenimentele periodice sunt mai usor de observat
 # in comparatie cu filtrul Chebyshev
+
+# 6 f)
+plt.plot(x, 'k', alpha=0.3, label='Original', linewidth=3)
+
+orders = [2, 5, 9]
+
+for N in orders:
+    b, a = signal.butter(N, Wn, btype='low')
+    x_filt = signal.filtfilt(b, a, x)
+    plt.plot(x_filt, linewidth=2, label=f'Butterworth Order {N}')
+
+plt.title('Butterworth')
+plt.legend()
+plt.grid(True)
+
+rps = [0.1, 1, 5]
+
+fig, axs = plt.subplots(len(rps), len(orders), figsize=(15, 12), sharex=True, sharey=True)
+
+for i, rp in enumerate(rps):
+    for j, N in enumerate(orders):
+        b, a = signal.cheby1(N, rp, Wn, btype='low')
+        x_filt = signal.filtfilt(b, a, x)
+        
+        ax = axs[i, j]
+        ax.plot(x, 'k', alpha=0.3, linewidth=1.5)
+        ax.plot(x_filt, 'r', linewidth=2)
+        
+        ax.grid(True, alpha=0.5)
+        
+        if j == 0:
+            ax.set_ylabel(f'rp={rp} dB\n')
+        
+        if i == 0:
+            ax.set_title(f'Order N={N}')
+
+plt.tight_layout()
+plt.show()
