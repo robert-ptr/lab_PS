@@ -3,7 +3,6 @@ import scipy
 import matplotlib.pyplot as plt
 
 # 1 a
-
 N = 1000
 
 X = np.linspace(0, 10, N)
