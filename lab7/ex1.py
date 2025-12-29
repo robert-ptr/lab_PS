@@ -16,6 +16,8 @@ fig = plt.figure(figsize=(12, 8))
 ax1 = fig.add_subplot(341)
 heatmap1 = ax1.pcolormesh(N1, N2, Z1, cmap='viridis', shading='auto')
 fig.colorbar(heatmap1, ax=ax1)
+# vedem dungi orizontale, deoarece unda variaza si pe orizontala si pe verticala simultan
+# datorita N1 si N2
 
 # PLOT 2: Z1 Frequency
 ax2 = fig.add_subplot(342)
@@ -28,6 +30,8 @@ fig.colorbar(im2, ax=ax2)
 ax3 = fig.add_subplot(343)
 heatmap2 = ax3.pcolormesh(N1, N2, Z2, cmap='viridis', shading='auto')
 fig.colorbar(heatmap2, ax=ax3)
+# avem 2 sinusoide, una pe orizontala si alta pe verticala
+# ceea ce observam("grid-ul") este interferenta dintre cele doua
 
 # PLOT 4: Z2 Frequency
 ax4 = fig.add_subplot(344)
@@ -53,6 +57,9 @@ fig.colorbar(im5, ax=ax5)
 ax6 = fig.add_subplot(346)
 im6 = ax6.imshow(np.real(Z3))
 fig.colorbar(im6, ax=ax6)
+# spectrul are frecventa 5 pe axa a doua(coloana)
+# deci imaginea variaza cand ne miscam de la dreapta la stanga
+# ceea ce rezulta in niste dungi verticale
 
 # PLOT 7: Z4 Frequency
 Y = np.zeros((N, N), dtype=complex)
@@ -68,6 +75,7 @@ fig.colorbar(im7, ax=ax7)
 ax8 = fig.add_subplot(348)
 im8 = ax8.imshow(np.real(Z4))
 fig.colorbar(im8, ax=ax8)
+# cazul opus exercitiului anterior, rezulta in dungi orizontale
 
 # PLOT 9: Z5 Frequency
 Y = np.zeros((N, N), dtype=complex)
@@ -83,6 +91,7 @@ fig.colorbar(im9, ax=ax9)
 ax10 = fig.add_subplot(3,4,10)
 im10 = ax10.imshow(np.real(Z5))
 fig.colorbar(im10, ax=ax10)
+# aceeasi frecventa pe ambele axe, rezulta in dungi orizontale
 
 plt.tight_layout()
 plt.show()
