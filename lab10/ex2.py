@@ -2,7 +2,6 @@ import numpy as np
 import scipy
 import matplotlib.pyplot as plt
 
-# 1 a
 N = 1000
 
 X = np.linspace(0, 10, N)
@@ -34,14 +33,6 @@ def fit_ar(data, p, n):
     predictions = Y.dot(beta)
     
     return beta, predictions
-
-def calculate_mse(data, predictions, n, p):
-    actual = data[p:n]
-    
-    k = min(len(actual), len(predictions))
-    
-    mse = np.mean((actual[:k] - predictions[:k]) ** 2)
-    return mse
 
 p = 100
 coefficients, predictions = fit_ar(observed, p, N)
