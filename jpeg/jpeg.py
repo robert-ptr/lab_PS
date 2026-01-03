@@ -52,16 +52,8 @@ if args.verbose:
     print(f"Compression set to {args.quality}%")
 
 try:
-    # Open the image file
     img = Image.open(args.filename)
-    
-    # 2. Force conversion to RGB
-    # This is crucial. If the user provides a PNG (RGBA) or a B&W image,
-    # your math will break later because the dimensions won't be what you expect.
     img = img.convert('RGB')
-
-    # 3. Convert to a NumPy Array
-    # This creates a (Height, Width, 3) matrix of integers (0-255)
     image_data = np.array(img)
 
 except Exception as e:
@@ -154,7 +146,6 @@ quantized_Y = np.round(dct_Y / Ts_Y)
 quantized_Cb = np.round(dct_Cb / Ts_Chroma)
 quantized_Cr = np.round(dct_Cr / Ts_Chroma)
 
-print(quantized_Y.shape)
 # do run-length encoding in a zig-zag on the new matrix
 def do_the_zig_zag(block):
     flipped = np.flipud(block)
@@ -178,5 +169,87 @@ flattened_Y = flatten_blocks(quantized_Y)
 flattened_Cb = flatten_blocks(quantized_Cb)
 flattened_Cr = flatten_blocks(quantized_Cr)
 
+def RLE_encode(block_stream):
+    encoded = []
+    
+    encoded.append(block_stream[0]) 
+    
+    zeros = 0
+    for i in range(1, 64):
+        val = block_stream[i]
+        
+        if val == 0:
+            zeros += 1
+        else:
+            encoded.append((zeros, val))
+            zeros = 0
+            
+    if zeros > 0:
+        encoded.append((0, 0))
+        
+    return encoded
+
+if args.verbose:
+    print("Performing Run-Length Encoding...")
+
+# apply RLE to all channels
+encoded_Y = [RLE_encode(block) for block in flattened_Y]
+encoded_Cb = [RLE_encode(block) for block in flattened_Cb]
+encoded_Cr = [RLE_encode(block) for block in flattened_Cr]
+
 # compress the stream of data further by using Huffman encoding
 
+# De-Quantize
+Y_recon_blocks = quantized_Y * Ts_Y
+Cb_recon_blocks = quantized_Cb * Ts_Chroma
+Cr_recon_blocks = quantized_Cr * Ts_Chroma
+
+# IDCT
+Y_idct = idctn(Y_recon_blocks, axes=(1, 2), norm='ortho')
+Cb_idct = idctn(Cb_recon_blocks, axes=(1, 2), norm='ortho')
+Cr_idct = idctn(Cr_recon_blocks, axes=(1, 2), norm='ortho')
+
+Y_idct += 128
+Cb_idct += 128
+Cr_idct += 128
+
+def merge_blocks(blocks, h, w):
+    return (blocks.reshape(h // 8, w // 8, 8, 8)
+                  .transpose(0, 2, 1, 3)
+                  .reshape(h, w))
+
+h_orig, w_orig = image_data.shape[:2]
+
+h_y_padded = int(np.ceil(h_orig / 8) * 8)
+w_y_padded = int(np.ceil(w_orig / 8) * 8)
+
+h_chroma = int(np.ceil(h_orig / 2)) # subsampled size
+w_chroma = int(np.ceil(w_orig / 2)) 
+
+h_chroma_padded = int(np.ceil(h_chroma / 8) * 8) # padded size
+w_chroma_padded = int(np.ceil(w_chroma / 8) * 8)
+
+Y_full = merge_blocks(Y_idct, h_y_padded, w_y_padded)
+Cb_full = merge_blocks(Cb_idct, h_chroma_padded, w_chroma_padded)
+Cr_full = merge_blocks(Cr_idct, h_chroma_padded, w_chroma_padded)
+
+# upsample Cb/Cr
+Cb_up = Cb_full.repeat(2, axis=0).repeat(2, axis=1)
+Cr_up = Cr_full.repeat(2, axis=0).repeat(2, axis=1)
+
+# crop to original image size
+Y_final = Y_full[:h_orig, :w_orig]
+Cb_final = Cb_up[:h_orig, :w_orig]
+Cr_final = Cr_up[:h_orig, :w_orig]
+
+# convert YCbCr to RGB
+R_out = Y_final + 1.402 * (Cr_final - 128)
+G_out = Y_final - 0.344136 * (Cb_final - 128) - 0.714136 * (Cr_final - 128)
+B_out = Y_final + 1.772 * (Cb_final - 128)
+
+img_reconstructed = np.dstack((R_out, G_out, B_out))
+img_reconstructed = np.clip(img_reconstructed, 0, 255).astype(np.uint8)
+
+output_filename = f"compressed_q{args.quality}.jpg"
+Image.fromarray(img_reconstructed).save(output_filename)
+print(f"Saved reconstructed image to: {output_filename}")
