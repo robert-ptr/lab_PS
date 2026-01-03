@@ -6,8 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.fft import dctn, idctn
 
-# Standard Quantization Table for Y
-Q_LUMA = np.array([
+# Standard Quantization Table for Y 
+Tb_Y = np.array([
     [16, 11, 10, 16, 24, 40, 51, 61],
     [12, 12, 14, 19, 26, 58, 60, 55],
     [14, 13, 16, 24, 40, 57, 69, 56],
@@ -19,7 +19,7 @@ Q_LUMA = np.array([
 ])
 
 # Standard Quantization Table for Chrominence
-Q_CHROMA = np.array([
+Tb_Chroma = np.array([
     [17, 18, 24, 47, 99, 99, 99, 99],
     [18, 21, 26, 66, 99, 99, 99, 99],
     [24, 26, 56, 99, 99, 99, 99, 99],
@@ -120,13 +120,13 @@ def apply_dct_to_channel(channel):
     padded = np.pad(channel, ((0, pad_h), (0, pad_w)), mode='edge')
     new_h, new_w = padded.shape
 
-    dct_blocks = np.zeros_like(padded, dtype=np.float32)
+    blocks = (padded.reshape(new_h // 8, 8, new_w // 8, 8)
+                    .transpose(0, 2, 1, 3)
+                    .reshape(-1, 8, 8))
 
-    for i in range(0, new_h, 8):
-        for j in range(0, new_w, 8):
-            block = padded[i:i+8, j:j+8]
-            block = block - 128.0
-            dct_blocks[i:i+8, j:j+8] = dctn(block, norm='ortho')
+    blocks = blocks - 128.0
+
+    dct_blocks = dctn(blocks, axes=(1, 2), norm='ortho')
 
     return dct_blocks
 
@@ -137,6 +137,25 @@ dct_Cr = apply_dct_to_channel(Cr_compressed)
 # take the results of DCT in the form of a matrix and make it sparser
 # based on a quality component
 
+if args.quality < 50:
+    S = 5000 / args.quality
+else:
+    S = 200 - 2 * args.quality
+
+Ts_Y = np.floor((S * Tb_Y + 50) / 100)
+Ts_Y = np.clip(Ts_Y, 1, 255)
+Ts_Y = Ts_Y.astype(np.int32)
+
+Ts_Chroma = np.floor((S * Tb_Chroma + 50) / 100)
+Ts_Chroma = np.clip(Ts_Chroma, 1, 255)
+Ts_Chroma = Ts_Chroma.astype(np.int32)
+
+quantized_Y = np.round(dct_Y / Ts_Y)
+quantized_Cb = np.round(dct_Cb / Ts_Chroma)
+quantized_Cr = np.round(dct_Cr / Ts_Chroma)
+
+print(quantized_Y.shape)
+# do run-length encoding in a zig-zag on the new matrix
 def do_the_zig_zag(block):
     flipped = np.flipud(block)
 
@@ -146,23 +165,18 @@ def do_the_zig_zag(block):
     ])
 
 def flatten_blocks(quantized_channel):
-    h, w = quantized_channel.shape
     flattened_blocks = []
 
-    for i in range(0, h, 8):
-        for j in range(0, w, 8):
-            block = quantized_channel[i:i+8, j:j+8]
+    for block in quantized_channel:
+        flat_block = do_the_zig_zag(block)
             
-            flat_block = do_the_zig_zag(block)
-            
-            flattened_blocks.append(flat_block)
+        flattened_blocks.append(flat_block)
             
     return flattened_blocks
 
-flattened_dct_Y = flatten_blocks(dct_Y)
-flattened_dct_Cb = flatten_blocks(dct_Cb)
-flattened_dct_Cr = flatten_blocks(dct_Cr)
-
-# do run-length encoding in a zig-zag on the new matrix
+flattened_Y = flatten_blocks(quantized_Y)
+flattened_Cb = flatten_blocks(quantized_Cb)
+flattened_Cr = flatten_blocks(quantized_Cr)
 
 # compress the stream of data further by using Huffman encoding
+
