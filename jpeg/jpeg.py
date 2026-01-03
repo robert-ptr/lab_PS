@@ -4,6 +4,7 @@ import os
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.fft import dctn, idctn
 
 # handle command line arguments
 parser = argparse.ArgumentParser(description="A script that compresses RGB images using jpeg")
@@ -57,13 +58,10 @@ Cr = np.clip(0.5 * R - 0.41869 * G - 0.08131 * B + 128, 0, 255)
 fig, axes = plt.subplots(2, 2, figsize=(20, 5))
 axes = axes.flatten()
 
-# 1. Show Original RGB
 axes[0].imshow(image_data)
 axes[0].set_title("Original RGB")
 axes[0].axis('off')
 
-# 2. Show Y (Luma) - Should look like a B&W photo
-# cmap='gray' tells python to draw low numbers black and high numbers white
 axes[1].imshow(Y, cmap='gray')
 axes[1].set_title("Y (Brightness)")
 axes[1].axis('off')
@@ -75,12 +73,10 @@ axes[1].axis('off')
 Cb_compressed = Cb[::2, ::2]
 Cr_compressed = Cr[::2, ::2]
 
-# 3. Show Cb (Blue Difference)
 axes[2].imshow(Cb_compressed, cmap='gray')
 axes[2].set_title("Cb (Blue Chroma)")
 axes[2].axis('off')
 
-# 4. Show Cr (Red Difference)
 axes[3].imshow(Cr_compressed, cmap='gray')
 axes[3].set_title("Cr (Red Chroma)")
 axes[3].axis('off')
@@ -90,6 +86,29 @@ plt.show()
 
 # split image into 8x8 blocks and then apply DCT on these blocks
 # by 'image' I mean all channels: Y, Cb, Cr
+
+def apply_dct_to_channel(channel):
+    h, w = channel.shape
+
+    # Add padding, because blocks must be 8x8
+    pad_h = (8 - h % 8) % 8
+    pad_w = (8 - w % 8) % 8
+    padded = np.pad(channel, ((0, pad_h), (0, pad_w)), mode='edge')
+    new_h, new_w = padded.shape
+
+    dct_blocks = np.zeros_like(padded, dtype=np.float32)
+
+    for i in range(0, new_h, 8):
+        for j in range(0, new_w, 8):
+            block = padded[i:i+8, j:j+8]
+            block = block - 128.0
+            dct_blocks[i:i+8, j:j+8] = dctn(block, norm='ortho')
+
+    return dct_blocks
+
+dct_Y = apply_dct_to_channel(Y)
+dct_Cb = apply_dct_to_channel(compressed_Cb)
+dct_Cr = apply_dct_to_channel(compressed_Cr)
 
 # take the results of DCT in the form of a matrix and make it sparser
 # based on a quality component
