@@ -5,6 +5,7 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.fft import dctn, idctn
+import cv2
 
 # standard quantization table for Y 
 Tb_Y = np.array([
@@ -39,6 +40,8 @@ parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose
 
 args = parser.parse_args()
 
+
+
 if not os.path.exists(args.filename):
     print(f"Error: The file '{args.filename}' was not found.")
     sys.exit(1)
@@ -51,181 +54,157 @@ if args.verbose:
     print(f"Loading {args.filename}...")
     print(f"MSE used for compression: {args.mse}%")
 
-try:
-    img = Image.open(args.filename)
-    img = img.convert('RGB')
-    image_data = np.array(img)
 
-except Exception as e:
-    print(f"Error: Could not process file '{args.filename}'.")
-    print(f"Details: {e}")
-    sys.exit(1)
-
+    
 # convert from RGB to YCbCr
 
-R = image_data[..., 0]
-G = image_data[..., 1]
-B = image_data[..., 2]
-
-Y = np.clip(0.299 * R + 0.587 * G + 0.114 * B, 0, 255)
-Cb = np.clip(-0.16874 * R - 0.33126 * G + 0.5 * B + 128, 0, 255)
-Cr = np.clip(0.5 * R - 0.41869 * G - 0.08131 * B + 128, 0, 255)
-
-# fig, axes = plt.subplots(2, 2, figsize=(20, 5))
-# axes = axes.flatten()
-
-# axes[0].imshow(image_data)
-# axes[0].set_title("Original RGB")
-# axes[0].axis('off')
-
-# axes[1].imshow(Y, cmap='gray')
-# axes[1].set_title("Y (Brightness)")
-# axes[1].axis('off')
-
-# compress CbCr channels (4x)
-# also called chroma subsampling
-# it works because humans suck at perceiving color
-
-Cb_compressed = Cb[::2, ::2]
-Cr_compressed = Cr[::2, ::2]
-
-# axes[2].imshow(Cb_compressed, cmap='gray')
-# axes[2].set_title("Cb (Blue Chroma)")
-# axes[2].axis('off')
-
-# axes[3].imshow(Cr_compressed, cmap='gray')
-# axes[3].set_title("Cr (Red Chroma)")
-# axes[3].axis('off')
-
-# plt.tight_layout()
-# plt.show()
-
-# split image into 8x8 blocks and then apply DCT on these blocks
-# by 'image' I mean all channels: Y, Cb, Cr
-
-def apply_dct_to_channel(channel):
-    h, w = channel.shape
-
-    # Add padding, because blocks must be 8x8
-    pad_h = (8 - h % 8) % 8
-    pad_w = (8 - w % 8) % 8
-    padded = np.pad(channel, ((0, pad_h), (0, pad_w)), mode='edge')
-    new_h, new_w = padded.shape
-
-    blocks = (padded.reshape(new_h // 8, 8, new_w // 8, 8)
-                    .transpose(0, 2, 1, 3)
-                    .reshape(-1, 8, 8))
-
-    blocks = blocks - 128.0
-
-    dct_blocks = dctn(blocks, axes=(1, 2), norm='ortho')
-
-    return dct_blocks
-
-dct_Y = apply_dct_to_channel(Y)
-dct_Cb = apply_dct_to_channel(Cb_compressed)
-dct_Cr = apply_dct_to_channel(Cr_compressed)
-
-# take the results of DCT in the form of a matrix and make it sparser
-# based on a quality component
-
-def compress_using_mse(target_mse):
-    print("Compressing image")
-    low = 1
-    high = 100
-    best_quality = None
-    final_mse = float('inf')
-
-    best_reconstruction = None
-
-    h_orig, w_orig = image_data.shape[:2]
+def compress_image(image_data):
     
-    h_padded = int(np.ceil(h_orig / 8) * 8)
-    w_padded = int(np.ceil(w_orig / 8) * 8)
-    
-    h_chroma = int(np.ceil(h_orig / 2))
-    w_chroma = int(np.ceil(w_orig / 2))
-    h_chroma_pad = int(np.ceil(h_chroma / 8) * 8)
-    w_chroma_pad = int(np.ceil(w_chroma / 8) * 8)
 
-    while low <= high:
-        Q = (low + high) // 2
+    R = image_data[..., 0]
+    G = image_data[..., 1]
+    B = image_data[..., 2]
+
+    Y = np.clip(0.299 * R + 0.587 * G + 0.114 * B, 0, 255)
+    Cb = np.clip(-0.16874 * R - 0.33126 * G + 0.5 * B + 128, 0, 255)
+    Cr = np.clip(0.5 * R - 0.41869 * G - 0.08131 * B + 128, 0, 255)
+
+    # compress CbCr channels (4x)
+    # also called chroma subsampling
+    # it works because humans suck at perceiving color
+
+    Cb_compressed = Cb[::2, ::2]
+    Cr_compressed = Cr[::2, ::2]
 
 
-        if Q < 50:
-            S = 5000 / Q
-        else:
-            S = 200 - 2 * Q
+    # split image into 8x8 blocks and then apply DCT on these blocks
+    # by 'image' I mean all channels: Y, Cb, Cr
 
-        Ts_Y = np.floor((S * Tb_Y + 50) / 100)
-        Ts_Y = np.clip(Ts_Y, 1, 255)
-        Ts_Y = Ts_Y.astype(np.int32)
+    def apply_dct_to_channel(channel):
+        h, w = channel.shape
 
-        Ts_Chroma = np.floor((S * Tb_Chroma + 50) / 100)
-        Ts_Chroma = np.clip(Ts_Chroma, 1, 255)
-        Ts_Chroma = Ts_Chroma.astype(np.int32)
+        # Add padding, because blocks must be 8x8
+        pad_h = (8 - h % 8) % 8
+        pad_w = (8 - w % 8) % 8
+        padded = np.pad(channel, ((0, pad_h), (0, pad_w)), mode='edge')
+        new_h, new_w = padded.shape
 
-        quantized_Y = np.round(dct_Y / Ts_Y)
-        quantized_Cb = np.round(dct_Cb / Ts_Chroma)
-        quantized_Cr = np.round(dct_Cr / Ts_Chroma) 
+        blocks = (padded.reshape(new_h // 8, 8, new_w // 8, 8)
+                        .transpose(0, 2, 1, 3)
+                        .reshape(-1, 8, 8))
 
-        Y_recon = idctn(quantized_Y * Ts_Y, axes=(1, 2), norm='ortho') + 128
-        Cb_recon = idctn(quantized_Cb * Ts_Chroma, axes=(1, 2), norm='ortho') + 128
-        Cr_recon = idctn(quantized_Cr * Ts_Chroma, axes=(1, 2), norm='ortho') + 128
+        blocks = blocks - 128.0
 
-        def merge_blocks(blocks, h, w):
-            return blocks.reshape(h // 8, w // 8, 8, 8).transpose(0, 2, 1, 3).reshape(h, w)
+        dct_blocks = dctn(blocks, axes=(1, 2), norm='ortho')
 
-        Y_full = merge_blocks(Y_recon, h_padded, w_padded)[:h_orig, :w_orig]
+        return dct_blocks
+
+    dct_Y = apply_dct_to_channel(Y)
+    dct_Cb = apply_dct_to_channel(Cb_compressed)
+    dct_Cr = apply_dct_to_channel(Cr_compressed)
+
+    # take the results of DCT in the form of a matrix and make it sparser
+    # based on a quality component
+
+    def compress_using_mse(target_mse):
+        print("Compressing image")
+        low = 1
+        high = 100
+        best_quality = None
+        final_mse = float('inf')
+
+        best_reconstruction = None
+
+        h_orig, w_orig = image_data.shape[:2]
         
-        Cb_full = merge_blocks(Cb_recon, h_chroma_pad, w_chroma_pad)
-        Cb_full = Cb_full.repeat(2, axis=0).repeat(2, axis=1)[:h_orig, :w_orig]
+        h_padded = int(np.ceil(h_orig / 8) * 8)
+        w_padded = int(np.ceil(w_orig / 8) * 8)
         
-        Cr_full = merge_blocks(Cr_recon, h_chroma_pad, w_chroma_pad)
-        Cr_full = Cr_full.repeat(2, axis=0).repeat(2, axis=1)[:h_orig, :w_orig]
+        h_chroma = int(np.ceil(h_orig / 2))
+        w_chroma = int(np.ceil(w_orig / 2))
+        h_chroma_pad = int(np.ceil(h_chroma / 8) * 8)
+        w_chroma_pad = int(np.ceil(w_chroma / 8) * 8)
 
-        # YCbCr to RGB
-        R_out = Y_full + 1.402 * (Cr_full - 128)
-        G_out = Y_full - 0.344136 * (Cb_full - 128) - 0.714136 * (Cr_full - 128)
-        B_out = Y_full + 1.772 * (Cb_full - 128)
+        while low <= high:
+            Q = (low + high) // 2
 
-        reconstructed_rgb = np.dstack((R_out, G_out, B_out)).clip(0, 255).astype(np.uint8)
 
-        # calculate MSE
-        current_mse = np.mean((image_data.astype(float) - reconstructed_rgb.astype(float)) ** 2)
-        
-        if current_mse <= target_mse:
-            best_quality = Q
-            final_mse = current_mse
-            best_reconstruction = reconstructed_rgb
-            high = Q - 1
-        else:
-            low = Q + 1
+            if Q < 50:
+                S = 5000 / Q
+            else:
+                S = 200 - 2 * Q
+
+            Ts_Y = np.floor((S * Tb_Y + 50) / 100)
+            Ts_Y = np.clip(Ts_Y, 1, 255)
+            Ts_Y = Ts_Y.astype(np.int32)
+
+            Ts_Chroma = np.floor((S * Tb_Chroma + 50) / 100)
+            Ts_Chroma = np.clip(Ts_Chroma, 1, 255)
+            Ts_Chroma = Ts_Chroma.astype(np.int32)
+
+            quantized_Y = np.round(dct_Y / Ts_Y)
+            quantized_Cb = np.round(dct_Cb / Ts_Chroma)
+            quantized_Cr = np.round(dct_Cr / Ts_Chroma) 
+
+            Y_recon = idctn(quantized_Y * Ts_Y, axes=(1, 2), norm='ortho') + 128
+            Cb_recon = idctn(quantized_Cb * Ts_Chroma, axes=(1, 2), norm='ortho') + 128
+            Cr_recon = idctn(quantized_Cr * Ts_Chroma, axes=(1, 2), norm='ortho') + 128
+
+            def merge_blocks(blocks, h, w):
+                return blocks.reshape(h // 8, w // 8, 8, 8).transpose(0, 2, 1, 3).reshape(h, w)
+
+            Y_full = merge_blocks(Y_recon, h_padded, w_padded)[:h_orig, :w_orig]
             
-        print(f"Q={Q} -> MSE={current_mse:.2f}")
-
-    return best_quality, final_mse, best_reconstruction
-
-# do run-length encoding in a zig-zag on the new matrix
-def do_the_zig_zag(block):
-    flipped = np.flipud(block)
-
-    return np.concatenate([
-        np.diagonal(flipped, offset=i)[::1 if i % 2 == 0 else -1]
-        for i in range(-7, 8)
-    ])
-
-def flatten_blocks(quantized_channel):
-    flattened_blocks = []
-
-    for block in quantized_channel:
-        flat_block = do_the_zig_zag(block)
+            Cb_full = merge_blocks(Cb_recon, h_chroma_pad, w_chroma_pad)
+            Cb_full = Cb_full.repeat(2, axis=0).repeat(2, axis=1)[:h_orig, :w_orig]
             
-        flattened_blocks.append(flat_block)
-            
-    return flattened_blocks
+            Cr_full = merge_blocks(Cr_recon, h_chroma_pad, w_chroma_pad)
+            Cr_full = Cr_full.repeat(2, axis=0).repeat(2, axis=1)[:h_orig, :w_orig]
 
-compress_using_mse(args.mse)
+            # YCbCr to RGB
+            R_out = Y_full + 1.402 * (Cr_full - 128)
+            G_out = Y_full - 0.344136 * (Cb_full - 128) - 0.714136 * (Cr_full - 128)
+            B_out = Y_full + 1.772 * (Cb_full - 128)
+
+            reconstructed_rgb = np.dstack((R_out, G_out, B_out)).clip(0, 255).astype(np.uint8)
+
+            # calculate MSE
+            current_mse = np.mean((image_data.astype(float) - reconstructed_rgb.astype(float)) ** 2)
+            
+            if current_mse <= target_mse:
+                best_quality = Q
+                final_mse = current_mse
+                best_reconstruction = reconstructed_rgb
+                high = Q - 1
+            else:
+                low = Q + 1
+                
+            print(f"Q={Q} -> MSE={current_mse:.2f}")
+
+        return best_quality, final_mse, best_reconstruction
+
+    # do run-length encoding in a zig-zag on the new matrix
+    def do_the_zig_zag(block):
+        flipped = np.flipud(block)
+
+        return np.concatenate([
+            np.diagonal(flipped, offset=i)[::1 if i % 2 == 0 else -1]
+            for i in range(-7, 8)
+        ])
+
+    def flatten_blocks(quantized_channel):
+        flattened_blocks = []
+
+        for block in quantized_channel:
+            flat_block = do_the_zig_zag(block)
+                
+            flattened_blocks.append(flat_block)
+                
+        return flattened_blocks
+
+    _, _, reconstructed_rgb = compress_using_mse(args.mse)
+
+    return reconstructed_rgb
 
 # flattened_Y = flatten_blocks(quantized_Y)
 # flattened_Cb = flatten_blocks(quantized_Cb)
@@ -315,3 +294,57 @@ compress_using_mse(args.mse)
 # output_filename = f"compressed_q{args.quality}.jpg"
 # Image.fromarray(img_reconstructed).save(output_filename)
 # print(f"Saved reconstructed image to: {output_filename}")
+
+_, ext = os.path.splitext(args.filename)
+ext = ext.lower()
+
+if ext == ".mp4": # clip-ul salvat in acest folder a ajuns la 40 MB, cand am comprimat cu cea mai proasta calitate
+                  # YouTube foloseste H.264, un encoder mult mai bun decat MJPEG cand vine vorba de video
+                  # ceea ce explica diferenta dintre dimensiunile obtinute
+    cap = cv2.VideoCapture(args.filename)
+    
+    if not cap.isOpened():
+        print("Error: Could not open video.")
+        exit()
+
+    width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps    = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+    output_filename = "compressed_output.avi"
+    out_writer = cv2.VideoWriter(output_filename, fourcc, fps, (width, height))
+
+    frame_count = 0
+
+    while True:
+        print(f"Current frame: {frame_count}")
+        ret, frame = cap.read()
+
+        if not ret:
+            break
+        
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        compressed_rgb = compress_image(frame_rgb)
+
+        frame_bgr = cv2.cvtColor(compressed_rgb, cv2.COLOR_RGB2BGR)
+
+        out_writer.write(frame_bgr)
+        frame_count += 1
+
+    cap.release()
+
+else:
+    try:
+        img = Image.open(filename)
+        img = img.convert('RGB')
+        image_data = np.array(img)
+
+    except Exception as e:
+        print(f"Error: Could not process file '{filename}'.")
+        print(f"Details: {e}")
+        sys.exit(1)
+
+    compress_image(image_data)
