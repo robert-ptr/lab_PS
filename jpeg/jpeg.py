@@ -96,12 +96,15 @@ def compress_image(image_data):
 
     # take the results of DCT in the form of a matrix and make it sparser
     # based on a quality component
-
+    
+    def merge_blocks(blocks, h, w):
+        return blocks.reshape(h // 8, w // 8, 8, 8).transpose(0, 2, 1, 3).reshape(h, w)
+    
     def compress_using_mse(target_mse):
         print("Compressing image")
         low = 1
         high = 100
-        best_quality = None
+        best_quality = 100
         final_mse = float('inf')
 
         best_reconstruction = None
@@ -118,7 +121,6 @@ def compress_image(image_data):
 
         while low <= high:
             Q = (low + high) // 2
-
 
             if Q < 50:
                 S = 5000 / Q
@@ -140,9 +142,6 @@ def compress_image(image_data):
             Y_recon = idctn(quantized_Y * Ts_Y, axes=(1, 2), norm='ortho') + 128
             Cb_recon = idctn(quantized_Cb * Ts_Chroma, axes=(1, 2), norm='ortho') + 128
             Cr_recon = idctn(quantized_Cr * Ts_Chroma, axes=(1, 2), norm='ortho') + 128
-
-            def merge_blocks(blocks, h, w):
-                return blocks.reshape(h // 8, w // 8, 8, 8).transpose(0, 2, 1, 3).reshape(h, w)
 
             Y_full = merge_blocks(Y_recon, h_padded, w_padded)[:h_orig, :w_orig]
             
