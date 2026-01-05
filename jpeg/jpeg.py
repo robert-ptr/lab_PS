@@ -338,4 +338,10 @@ else:
         print(f"Details: {e}")
         sys.exit(1)
 
-    compress_image(image_data)
+    compressed_image = compress_image(image_data)
+
+    name, _ = os.path.splitext(args.filename)
+
+    output_filename = f"compressed_{name}.png" # no jpg because I don't have Huffman encoding implemented
+
+    Image.fromarray(compressed_image).save(output_filename)
