@@ -36,11 +36,8 @@ parser = argparse.ArgumentParser(description="A script that compresses RGB image
 
 parser.add_argument("filename", type=str, help="The input file path") # can be image or video
 parser.add_argument("--mse", "-m", type=int, default=70, help="MSE for JPEG Image Quality")
-parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
 
 args = parser.parse_args()
-
-
 
 if not os.path.exists(args.filename):
     print(f"Error: The file '{args.filename}' was not found.")
@@ -50,12 +47,6 @@ if (args.mse < 0):
     print(f"Error: MSE must be bigger than 0. You provided {args.mse}.")
     sys.exit(1)
 
-if args.verbose:
-    print(f"Loading {args.filename}...")
-    print(f"MSE used for compression: {args.mse}%")
-
-
-    
 # convert from RGB to YCbCr
 
 def compress_image(image_data):
@@ -338,12 +329,12 @@ if ext == ".mp4": # clip-ul salvat in acest folder a ajuns la 40 MB, cand am com
 
 else:
     try:
-        img = Image.open(filename)
+        img = Image.open(args.filename)
         img = img.convert('RGB')
         image_data = np.array(img)
 
     except Exception as e:
-        print(f"Error: Could not process file '{filename}'.")
+        print(f"Error: Could not process file '{args.filename}'.")
         print(f"Details: {e}")
         sys.exit(1)
 
